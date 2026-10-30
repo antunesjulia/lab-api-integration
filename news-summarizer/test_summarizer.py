@@ -91,3 +91,37 @@ def test_summarize_news_returns_message_for_empty_input(monkeypatch):
     monkeypatch.setattr(summarizer, "client", None)
 
     assert summarizer.summarize_news([]) == "No news to summarize."
+
+
+def test_fake_news_payload_flows_into_openai_summary(monkeypatch):
+    expected_summary = "A library started a free robotics club for teenagers."
+    captured_request = {}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        return FakeResponse({"articles": [FAKE_ARTICLE]})
+
+    class FakeChatCompletions:
+        def create(self, **kwargs):
+            captured_request.update(kwargs)
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content=expected_summary)
+                    )
+                ]
+            )
+
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=FakeChatCompletions())
+    )
+    monkeypatch.setattr(news_api, "NEWS_API_KEY", "fake-key")
+    monkeypatch.setattr(requests, "get", fake_get)
+    monkeypatch.setattr(summarizer, "client", fake_client)
+
+    articles = news_api.get_latest_news("robotics", 1)
+    result = summarizer.summarize_news(articles)
+
+    prompt = captured_request["messages"][1]["content"]
+    assert result == expected_summary
+    assert FAKE_ARTICLE["title"] in prompt
+    assert FAKE_ARTICLE["description"] in prompt
