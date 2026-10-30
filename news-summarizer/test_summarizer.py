@@ -1,6 +1,8 @@
 import requests
+from types import SimpleNamespace
 
 import news_api
+import summarizer
 
 
 FAKE_NEWS_API_URL = "https://newsapi.org/v2/everything"
@@ -52,3 +54,40 @@ def test_get_latest_news_returns_empty_list_on_request_error(monkeypatch):
     result = news_api.get_latest_news("tech", 3)
 
     assert result == []
+
+
+def test_summarize_news_uses_openai_and_returns_summary(monkeypatch):
+    expected_summary = "The library launched a free weekly robotics club for teenagers."
+    calls = {}
+
+    class FakeChatCompletions:
+        def create(self, **kwargs):
+            calls.update(kwargs)
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content=f" {expected_summary} ")
+                    )
+                ]
+            )
+
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=FakeChatCompletions())
+    )
+    monkeypatch.setattr(summarizer, "client", fake_client)
+
+    result = summarizer.summarize_news(
+        [{"title": FAKE_ARTICLE["title"], "content": FAKE_ARTICLE["content"]}]
+    )
+
+    assert result == expected_summary
+    assert calls["model"] == "gpt-4o-mini"
+    assert calls["messages"][0]["role"] == "system"
+    assert FAKE_ARTICLE["title"] in calls["messages"][1]["content"]
+    assert FAKE_ARTICLE["content"] in calls["messages"][1]["content"]
+
+
+def test_summarize_news_returns_message_for_empty_input(monkeypatch):
+    monkeypatch.setattr(summarizer, "client", None)
+
+    assert summarizer.summarize_news([]) == "No news to summarize."

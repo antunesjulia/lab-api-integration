@@ -7,11 +7,11 @@ def summarize_news(news_list):
     """
     Receive the news list and use AI to generate a unique summary.
     """
-    if not client:
-        raise ValueError("OPENAI_API_KEY is missing. Add it to the .env file.")
-
     if not news_list:
         return "No news to summarize."
+
+    if not client:
+        raise ValueError("OPENAI_API_KEY is missing. Add it to the .env file.")
 
     news_text = ""
     for i, news in enumerate(news_list, 1):
